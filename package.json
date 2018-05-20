@@ -1,0 +1,20 @@
+{
+  "name": "color-wheel",
+  "version": "1.0.0",
+  "description": "Circular colour picker",
+  "private": true,
+  "scripts": {
+    "watch": "webpack -d --watch",
+    "build": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jake Wright",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-core": "^6.26.3",
+    "babel-loader": "^7.1.4",
+    "babel-preset-env": "^1.7.0",
+    "webpack": "^4.8.3",
+    "webpack-cli": "^2.1.3"
+  }
+}
