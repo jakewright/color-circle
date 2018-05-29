@@ -1,56 +1,67 @@
-import {isHexColor} from './utils/validators';
 import ColorSpectrum from './ColorSpectrum';
-import Selector from './Selector';
+import Thumb from './Thumb';
+import tinycolor from 'tinycolor2';
 
 export default class ColorWheel {
-    constructor(container, value, centerRadius, diameter) {
-        if (typeof diameter === 'undefined') diameter = container.clientWidth;
+    /**
+     * @param {Object} options
+     * @param {HTMLInputElement} options.input The input element that will be updated when the colour is changed
+     * @param {Element} options.target The element that will contain the colour picker
+     * @param {number} options.diameterRatio The ratio of the inner diameter to the outer diameter
+     * @param {number} options.thumbDiameter The diameter of the round selector
+     */
+    constructor({ input, target, diameterRatio, thumbDiameter }) {
+        if (input === undefined) throw new Error('input must be an HTML input element');
+        if (target === undefined) throw new Error('target must be an HTML element');
+        if (isNaN(diameterRatio) || diameterRatio < 0 || diameterRatio > 1)
+            throw new Error('diameterRatio must be a number in the range [0, 1]');
 
-        if (!isHexColor(value)) throw new Error('value must be valid hex colour string, received: ' + value);
-        if (isNaN(centerRadius)) throw new Error('centerRadius must be a number, received: ' + diameter);
-        if (isNaN(diameter)) throw new Error('diameter must be a number, received: ' + diameter);
+        const outerDiameter = Math.min(target.clientWidth, target.clientHeight);
+        const innerDiameter = outerDiameter * diameterRatio;
 
-        this.centerRadius = centerRadius;
+        const color = tinycolor(input.value);
+        if (!color.isValid()) throw new Error(`The value of the input '${value}' is not a valid CSS color`);
 
-        // Create spectrumCanvas for colour spectrum
-        this.spectrumCanvas = this._createCanvas(diameter, false);
-        this.spectrumContext = this.spectrumCanvas.getContext('2d');
-        container.appendChild(this.spectrumCanvas);
+        this.input = input;
+        this.radius = outerDiameter / 2;
+        this.centerRadius = innerDiameter / 2;
+
+        // Create a container for the canvas and the thumb
+        const container = document.createElement('div');
+        container.style.position = 'relative';
+        container.style.width = outerDiameter + 'px';
+        container.style.height = outerDiameter + 'px';
 
         // Create the colour spectrum
-        this.spectrum = new ColorSpectrum(this.spectrumCanvas, centerRadius, diameter);
+        this.spectrumCanvas = document.createElement('canvas');
+        this.spectrumCanvas.style.position = 'absolute';
+        this.spectrumCanvas.width = outerDiameter;
+        this.spectrumCanvas.height = outerDiameter;
+        this.spectrumCanvas.style.width = '100%';
+        this.spectrumCanvas.style.height = '100%';
+        container.appendChild(this.spectrumCanvas);
+        this.spectrum = new ColorSpectrum(this.spectrumCanvas, outerDiameter, innerDiameter);
+        this.spectrum.draw();
 
-        // Create spectrumCanvas for selector
-        this.selectorCanvas = this._createCanvas(diameter, true);
-        container.appendChild(this.selectorCanvas);
+        // Create the thumb
+        thumbDiameter = thumbDiameter === undefined ? 50 : thumbDiameter;
+        const div = document.createElement('div');
+        container.appendChild(div);
+        const position = this.spectrum.getPositionOfColor(color);
+        this.thumb = new Thumb(div, position, thumbDiameter, color);
 
-        // Create the selector
-        this.selector = new Selector(this.selectorCanvas, { x: 0, y: 0 }, centerRadius, value);
+        // Insert the container into the DOM
+        target.appendChild(container);
 
-        this.touching = false;
-        this.dragging = false;
+        // When moving the thumb, keep track of which colour it started on so we know whether the colour was changed
+        // at the end. We do not set this variable until the thumb is "picked up" because it is used to know whether
+        // the thumb is currently being moved.
+        this.startColor = undefined;
         this._setupEvents();
     }
 
-    draw() {
-        this.spectrum.draw();
-        this.selector.draw();
-    }
-
-    _createCanvas(diameter, noPointerEvents) {
-        const canvas = document.createElement('canvas');
-        canvas.style.position = 'absolute';
-        canvas.width = diameter;
-        canvas.height = diameter;
-        if (noPointerEvents) {
-            canvas.style.pointerEvents = 'none';
-        }
-
-        return canvas;
-    }
-
     _setupEvents() {
-        this.spectrumCanvas.addEventListener('mousedown', (e) => { this._handleStartDrag(e) });
+        this.spectrumCanvas.addEventListener('mousedown', (e) => { this._handleMouseDown(e) });
         this.spectrumCanvas.addEventListener('touchstart', (e) => {
             // Only handle single finger touches
             if (e.changedTouches.length !== 1) return;
@@ -59,15 +70,15 @@ export default class ColorWheel {
 
             // Cannot pass the mouse event; must get the first touch event which will hold the position.
             const touch = e.changedTouches[0];
-            this._handleStartDrag(touch)
+            this._handleMouseDown(touch)
         });
 
-        this.spectrumCanvas.addEventListener('mouseup', () => { this._handleStopDrag() });
-        this.spectrumCanvas.addEventListener('touchend', () => { this._handleStopDrag() });
-        this.spectrumCanvas.addEventListener('touchcancel', () => { this._handleStopDrag() });
+        this.spectrumCanvas.addEventListener('mouseup', () => { this._handleMouseUp() });
+        this.spectrumCanvas.addEventListener('touchend', () => { this._handleMouseUp() });
+        this.spectrumCanvas.addEventListener('touchcancel', () => { this._handleMouseUp() });
 
         this.spectrumCanvas.addEventListener('mousemove', (e) => {
-            this._handleDrag(event)
+            this._handleMouseMove(e)
         });
 
         this.spectrumCanvas.addEventListener('touchmove', (e) => {
@@ -78,54 +89,78 @@ export default class ColorWheel {
 
             // Cannot pass the mouse event; must get the first touch event which will hold the position.
             const touch = e.changedTouches[0];
-            this._handleDrag(touch)
+            this._handleMouseMove(touch)
         });
     }
 
-    _handleStartDrag(event) {
-        this.selector.startDraw();
-        this.touching = true;
+    _handleMouseDown(event) {
+        this.startColor = this.thumb.fill;
 
         this._moveSelector(this._getMousePosition(event));
     }
 
-    _handleDrag(event) {
-        if (!this.touching) return;
+    _handleMouseMove(event) {
+        // Ignore this mouse move event if we're not currently dragging the thumb
+        if (!this.startColor) return;
 
-        this._moveSelector(this._getMousePosition(event));
+        // Move the thumb to the new position. This will return whether the position was inside the spectrum or not.
+        const isInside = this._moveSelector(this._getMousePosition(event));
 
-        // Animate to the larger radius if necessary
-        if (!this.dragging) {
-            this.selector.animateTo({radius: this.centerRadius * 1.2, ms: 100});
+        // Zoom the thumb while selecting, nudging the position up if the mouse pointer is inside the spectrum.
+        this.thumb.zoom(isInside);
+    }
+
+    _handleMouseUp() {
+        this.thumb.unzoom();
+
+        if (this.thumb.fill.toHex() !== this.startColor.toHex()) {
+            const event = new Event('change');
+            this.input.dispatchEvent(event);
         }
 
-        this.dragging = true;
-    }
-
-    _handleStopDrag() {
-        this.touching = false;
-        this.dragging = false;
-
-        this.selector.animateTo({radius: this.centerRadius, ms: 100});
-        this.selector.stopDraw();
+        this.startColor = false;
     }
 
     /**
      * Given a position, move the selector to that position and set its colour based on the colour of the spectrum at
-     * that point.
-     * @param {Number} x
-     * @param {Number} y
+     * that point. If the position is outside of the spectrum, then the closest point inside will be found.
      * @private
      */
-    _moveSelector({ x, y }, nudgeUp) {
-        const imageData = this.spectrumContext.getImageData(x, y, 1, 1).data;
+    _moveSelector(b) {
+        const oldColor = this.thumb.fill;
 
-        const position = nudgeUp ? {x: x + 10, y: y + 10} : {x, y};
+        let inside = true;
+        let color = this.spectrum.getColorOfPosition(b);
 
-        this.selector.position = position;
-        this.selector.fill = 'rgb(' + imageData[0] + ', ' + imageData[1] + ', ' + imageData[2] + ')';
+        // If the colour is black, assume that the pointer is outside of the spectrum and instead find the closest point
+        // that is within the doughnut shape.
+        if (color.toHex() === '000000') {
+            inside = false;
+            // Let a be a vector representing the centre of the circle
+            const a = {x: this.radius, y: this.radius};
 
+            // Let d be || b - a ||
+            const d = Math.sqrt(Math.pow(b.x - a.x, 2) + Math.pow(b.y - a.y, 2));
 
+            const r = (d > this.radius) ? this.radius - 1 : this.centerRadius + 1;
+
+            // Find the point on the edge of the circle closest to b
+            b.x = a.x + r * (b.x - a.y) / d;
+            b.y = a.y + r * (b.y - a.y) / d;
+
+            color = this.spectrum.getColorOfPosition(b);
+        }
+
+        this.thumb.position = b;
+        this.thumb.fill = color;
+
+        if (oldColor.toHex() !== color.toHex()) {
+            this.input.value = color.toHexString();
+            const event = new Event('input');
+            this.input.dispatchEvent(event);
+        }
+
+        return inside;
     }
 
     _getMousePosition(event) {
@@ -135,6 +170,4 @@ export default class ColorWheel {
             y: event.clientY - rect.top,
         };
     }
-
-
 }

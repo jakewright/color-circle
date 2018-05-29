@@ -1,9 +1,35 @@
 <html>
     <head>
         <script src="./dist/bundle.js"></script>
+        <style>
+            #target {
+                width: 700px;
+                height: 700px;
+            }
+        </style>
     </head>
     <body>
-        <div class="color-wheel"></div>
+        <input id="picker" type="color" value="#FF0000">
 
+        <div id="target"></div>
+
+        <script>
+            const input = document.getElementById('picker');
+            const picker = new ColorWheel({
+                input,
+                // outerDiameter: 400,
+                // innerDiameter: 75,
+                thumbDiameter: 30,
+                target: document.getElementById('target'),
+                diameterRatio: 0.25,
+            });
+            input.addEventListener('input', function (e) {
+                // console.log(e);
+            });
+
+            input.addEventListener('change', function () {
+                console.log('change');
+            });
+        </script>
     </body>
 </html>
