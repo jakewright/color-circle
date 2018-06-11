@@ -1,8 +1,8 @@
 {
-  "name": "color-wheel",
+  "name": "color-circle",
   "version": "1.0.0",
   "description": "Circular colour picker",
-  "private": true,
+  "main": "index.js",
   "scripts": {
     "watch": "webpack -d --watch",
     "build": "webpack",

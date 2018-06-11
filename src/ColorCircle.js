@@ -2,7 +2,7 @@ import ColorSpectrum from './ColorSpectrum';
 import Thumb from './Thumb';
 import tinycolor from 'tinycolor2';
 
-export default class ColorWheel {
+export default class ColorCircle {
     /**
      * @param {Object} options
      * @param {HTMLInputElement} options.input The input element that will be updated when the colour is changed
