@@ -1,3 +1,3 @@
 # Color Wheel
 
-A pure Javascript, circular colour picker. 
+A pure JavaScript, circular colour picker.
