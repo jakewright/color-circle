@@ -1,6 +1,6 @@
 {
   "name": "color-circle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Circular colour picker",
   "main": "index.js",
   "scripts": {
@@ -8,9 +8,9 @@
     "build": "webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "repository":{
-    "type" : "git",
-    "url" : "https://github.com/jakewright/color-wheel.git"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jakewright/color-wheel.git"
   },
   "author": "Jake Wright",
   "license": "MIT",
