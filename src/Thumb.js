@@ -26,8 +26,8 @@ export default class Thumb {
     }
 
     set position({ x, y }) {
-        this.element.style.left = x;
-        this.element.style.top = y;
+        this.element.style.left = `${x}px`;
+        this.element.style.top = `${y}px`;
     }
 
     get fill() {

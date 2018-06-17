@@ -16,7 +16,7 @@ export default class ColorCircle {
         if (isNaN(diameterRatio) || diameterRatio < 0 || diameterRatio > 1)
             throw new Error('diameterRatio must be a number in the range [0, 1]');
 
-        const outerDiameter = Math.min(target.clientWidth, target.clientHeight);
+        const outerDiameter = Math.max(target.clientWidth, target.clientHeight);
         const innerDiameter = outerDiameter * diameterRatio;
 
         const color = tinycolor(input.value);
